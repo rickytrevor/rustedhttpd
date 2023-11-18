@@ -49,7 +49,6 @@ async fn handle_client(mut stream: &TcpStream, dirs: &mut fileDataTtl, map: &mut
 
 
 
-
     let file = utilities::FileData::get_by_http_subdir(path, dirs.get_file().clone());
 
 

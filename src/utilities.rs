@@ -95,7 +95,6 @@ impl FileData {
                 }
             }
 
-//        println!("{:?}", dirs);
         for dir in dirs {
             if dir.get_http_subdir() == subdir {
                 return Some(dir);
@@ -227,7 +226,7 @@ fn process_directory(directory_path: &str, no_recursive: bool) -> Vec<FileData> 
             for path in paths {
                 if let Ok(entry) = path {
                     let entry_path = entry.path();
-                    let entry_name = entry.file_name().to_string_lossy().replace("'", "\'").replace(" ", "\\").to_string();
+                    let entry_name = entry.file_name().to_string_lossy().replace("'", "\'").to_string();
                     let mut http_subdir = entry_path.to_str().unwrap().to_string();
                     http_subdir.replace_range((0..5), "");
                     let content_type = parse_content_type(&entry_path.to_str().unwrap());
@@ -269,7 +268,7 @@ fn process_directory(directory_path: &str, no_recursive: bool) -> Vec<FileData> 
 pub fn parse_req_buffer(Buf: Vec<String>) -> String{
     let mut buffer = String::new();
     for line in Buf {
-        buffer.push_str(&line);
+        buffer.push_str(&line.replace("%20", " "));
     }
 
     let mut path = match buffer.split("GET").collect::<Vec<&str>>().get(1) {
