@@ -4,9 +4,8 @@ use std::{io, thread};
 use std::fs::{self, File};
 use std::sync::{Arc, mpsc};
 use tokio::sync::{Mutex, Semaphore};
-use utilities::FileData;
 use utilities::fileDataTtl;
-
+use std::env;
 use std::net::{TcpListener, TcpStream};
 use std::io::BufReader;
 use std::io::Write;
@@ -16,7 +15,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod utilities;
 
 pub fn write_data(mut stream: &TcpStream, data: utilities::Response) -> io::Result<()> {
-//    let mut writer = BufWriter::new(stream);
     stream.write_all(&data.as_bytes());
     stream.flush();  
     Ok(())
@@ -109,18 +107,24 @@ async fn handle_client(mut stream: &TcpStream, dirs: &mut fileDataTtl, map: &mut
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    let args: Vec<String> = env::args().collect();
     let mut senders: Vec<Sender<TcpStream>> = vec![];
-    let NUM_THREADS: usize = 16;
+    let mut NUM_THREADS: usize;
+
+    if args.len() > 1 {
+        NUM_THREADS = args[1].parse::<usize>().unwrap();
+    } else {
+        println!("No number of threads specified, using 2");
+        NUM_THREADS = 2;
+    }
 
     for i in 0..NUM_THREADS {
         let (sender, receiver): (Sender<TcpStream>, _) = unbounded();
         senders.push(sender.clone());
-        let (dir_sender, dir_receiver): (Sender<Vec<utilities::FileData>>, Receiver<Vec<utilities::FileData>>) = unbounded();
 
-        let (task_sender, task_receiver): (Sender<bool>, _) = unbounded();
         let receiver = receiver.clone();
-        let task_sender = task_sender.clone();        
-        tokio::spawn(process_message(receiver, task_sender, dir_receiver.clone(),i.try_into().unwrap()));
+
+        tokio::spawn(process_message(receiver, i.try_into().unwrap()));
     }
 
     let listener = TcpListener::bind("0.0.0.0:8453")?;
@@ -145,7 +149,9 @@ fn get_epoch_now() -> u32 {
     let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
     since_the_epoch.as_secs() as u32
 }
-async fn process_message(receiver: Receiver<TcpStream>, task_sender: Sender<bool>, dir_receiver: Receiver<Vec<utilities::FileData>>,idx: i32) {
+
+
+async fn process_message(receiver: Receiver<TcpStream>,idx: i32) {
         let mut dirs: fileDataTtl = fileDataTtl {
             timestamp: get_epoch_now(),
             files: utilities::look_for_dirs_and_subdirs(),

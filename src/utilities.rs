@@ -267,8 +267,6 @@ fn process_directory(directory_path: &str, no_recursive: bool) -> Vec<FileData> 
 
 
 pub fn parse_req_buffer(Buf: Vec<String>) -> String{
-
-//    println!("{:?}", Buf);
     let mut buffer = String::new();
     for line in Buf {
         buffer.push_str(&line);
