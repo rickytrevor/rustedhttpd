@@ -1,6 +1,10 @@
 use std::fs::{self, File};
 use std::io::Read;
 
+use std::sync::{Arc, Mutex};
+use crossbeam_channel::{unbounded, Sender, Receiver};
+use std::collections::VecDeque;
+
 
 pub struct Response<'a> {
     pub http_version: &'a str,
@@ -45,9 +49,29 @@ pub struct FileData {
     http_subdir: String,
     content_type: String,
     is_dir: bool,
-
 }
 
+
+pub struct fileDataTtl {
+    pub files: Vec<FileData>,
+    pub ttl: u32,
+    pub timestamp: u32,
+}
+
+impl fileDataTtl {
+    pub fn get_file(&self) -> &Vec<FileData> {
+        &self.files
+    }
+
+    pub fn get_timestamp(&self) -> u32 {
+        self.timestamp
+    }
+
+    pub fn set_timestamp(&mut self, ttl: u32) {
+        self.timestamp = ttl;
+    }
+
+}
 
 impl FileData {
     pub fn get_path(&self) -> String {
@@ -61,6 +85,8 @@ impl FileData {
     pub fn get_http_subdir(&self) -> String {
         self.http_subdir.clone()
     }
+
+
 
     pub fn get_by_http_subdir(mut subdir: String, dirs: Vec<FileData>) -> Option<FileData> {
             if subdir.len() > 1 {
@@ -93,14 +119,10 @@ impl FileData {
 
 
 
-
-
 pub fn look_for_files_in_this_dir(path: String) -> Vec<FileData> {
-    let mut files = Vec::new();
-
-    process_directory(&path, &mut files, true);
-
-    files
+    
+    return process_directory(&path,  true);
+    
 }
 
 
@@ -108,7 +130,6 @@ pub fn look_for_files_in_this_dir(path: String) -> Vec<FileData> {
 pub fn process_if_path_is_dir(path: FileData) -> String {
         let mut buffer = String::from("<h1>Directory</h1>");
         let dirs_and_subdirs = look_for_files_in_this_dir(path.get_path());
-//        println!("{:?}", path.get_http_subdir());
         for dir in dirs_and_subdirs {
             buffer.push_str("<ul>");
             buffer.push_str("<li>");
@@ -146,7 +167,7 @@ pub fn open_file_by_path(path: FileData, files: Vec<FileData> ) -> Vec<u8> {
 }
 
 pub fn look_for_dirs_and_subdirs() -> Vec<FileData> {
-    let mut files = Vec::new();
+        let mut files = Vec::new();
     let root_path = "./web";
 
     files.push(FileData {
@@ -157,7 +178,11 @@ pub fn look_for_dirs_and_subdirs() -> Vec<FileData> {
         is_dir: true,
         
     });
-    process_directory(root_path, &mut files, false);
+
+
+    for file in process_directory(root_path,  false).iter() {
+        files.push(file.clone());
+    }
 
     files
 }
@@ -167,6 +192,7 @@ fn parse_content_type(path: &str) -> String {
     let mut content_type = String::from("");
     let mut path = path.split(".").collect::<Vec<&str>>();
     let extension = path.pop().unwrap();
+
     match extension {
         "html" => content_type = String::from("text/html"),
         "css" => content_type = String::from("text/css"),
@@ -182,66 +208,80 @@ fn parse_content_type(path: &str) -> String {
         "mp3" => content_type = String::from("audio/mpeg"),
         _ => content_type = String::from("text/html"),
     }
+
     content_type
 }
 
-fn process_directory(directory_path: &str, files: &mut Vec<FileData>, no_recursive: bool) {
 
-//    println!("{:?}", "FUNZIONE CHIAMATA");
 
-    if let Ok(paths) = std::fs::read_dir(directory_path) {
-        for path in paths {
-            if let Ok(entry) = path {
-                let entry_path = entry.path();
-                let entry_name = entry.file_name().to_string_lossy().replace("'", "\'").replace(" ", "\\").to_string();         
-                let mut http_subdir = entry_path.to_str().unwrap().to_string();
-                http_subdir.replace_range((0..5), "");
-                let content_type = parse_content_type(&entry_path.to_str().unwrap());
 
-                if entry_path.is_dir() {
-                    files.push(FileData {
-                        path: entry_path.to_str().unwrap().to_string(),
-                        name: entry_name.clone(),
-                        http_subdir: http_subdir.to_string(),
-                        content_type: content_type,
-                        is_dir: true,       
-                    });
 
-                    if !no_recursive {
-                        process_directory(&entry_path.to_str().unwrap(), files, false);
+fn process_directory(directory_path: &str, no_recursive: bool) -> Vec<FileData> {
+    let mut files = Vec::new();
+    let mut stack = VecDeque::new();
+
+    stack.push_back(directory_path.to_string());
+
+    while let Some(current_path) = stack.pop_back() {
+        if let Ok(paths) = fs::read_dir(&current_path) {
+            for path in paths {
+                if let Ok(entry) = path {
+                    let entry_path = entry.path();
+                    let entry_name = entry.file_name().to_string_lossy().replace("'", "\'").replace(" ", "\\").to_string();
+                    let mut http_subdir = entry_path.to_str().unwrap().to_string();
+                    http_subdir.replace_range((0..5), "");
+                    let content_type = parse_content_type(&entry_path.to_str().unwrap());
+
+                    if entry_path.is_dir() {
+                        files.push(FileData {
+                            path: entry_path.to_str().unwrap().to_string(),
+                            name: entry_name.clone(),
+                            http_subdir: http_subdir.to_string(),
+                            content_type: content_type.clone(),
+                            is_dir: true,
+                        });
+
+                        if !no_recursive {
+                            stack.push_back(entry_path.to_str().unwrap().to_string());
+                        }
+                    } else {
+                        files.push(FileData {
+                            path: entry_path.to_str().unwrap().to_string(),
+                            name: entry_name.clone(),
+                            http_subdir: http_subdir.to_string(),
+                            content_type: content_type.clone(),
+                            is_dir: false,
+                        });
                     }
-
-                } else {
-
-                    files.push(FileData {
-                        path: entry_path.to_str().unwrap().to_string(),
-                        name: entry_name.clone(),
-                        http_subdir: http_subdir.to_string(),
-                        content_type: content_type,
-                        is_dir: false,
-                    });
                 }
             }
         }
     }
+
+    files
 }
+
+
+
+
 
 
 pub fn parse_req_buffer(Buf: Vec<String>) -> String{
 
-    println!("{:?}", Buf);
+//    println!("{:?}", Buf);
     let mut buffer = String::new();
     for line in Buf {
         buffer.push_str(&line);
     }
 
-    let mut path = buffer.split("GET").collect::<Vec<&str>>()[1];
-    path = path.split("HTTP/1.1").collect::<Vec<&str>>()[0];
+    let mut path = match buffer.split("GET").collect::<Vec<&str>>().get(1) {
+        Some(p) => p,
+        None => "",
+    };
+    path = match path.split("HTTP/1.1").collect::<Vec<&str>>().get(0) {
+        Some(p) => p,
+        None => path,
+    };
     path = path.trim();
-
-    let mut pathStr = String::from(path);
-    // replace %20 with a space
-    pathStr = pathStr.replace("%20", " ");      
-    pathStr
-
+    path.to_string()
 }
