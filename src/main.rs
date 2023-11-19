@@ -4,20 +4,23 @@ use std::{io, thread};
 use std::fs::{self, File};
 use std::sync::{Arc, mpsc};
 use tokio::sync::{Mutex, Semaphore};
-use utilities::fileDataTtl;
 use std::net::{TcpListener, TcpStream};
 use std::io::BufReader;
 use std::io::Write;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-mod utilities;
 mod config;
+mod parsing;
+mod structs;
+mod files;
+
+use parsing::*;
+use structs::*;
+use files::*;
+use config::*;
 
 
-
-
-pub fn write_data(mut stream: &TcpStream, data: utilities::Response) -> io::Result<()> {
+pub fn write_data(mut stream: &TcpStream, data: structs::Response) -> io::Result<()> {
     stream.write_all(&data.as_bytes());
     stream.flush();  
     Ok(())
@@ -29,7 +32,7 @@ async fn handle_client(mut stream: &TcpStream, dirs: &mut fileDataTtl, map: &mut
     let now = get_epoch_now();
     if now > (dirs.timestamp + dirs.ttl) {
         dirs.ttl = dirs.ttl;
-        dirs.files = utilities::look_for_dirs_and_subdirs();
+        dirs.files = look_for_dirs_and_subdirs();
         dirs.timestamp = now;
         *map = HashMap::new();
     }
@@ -48,11 +51,11 @@ async fn handle_client(mut stream: &TcpStream, dirs: &mut fileDataTtl, map: &mut
         buffer.push(line);
     }
 
-    let path = utilities::parse_req_buffer(buffer);
+    let path = parse_req_buffer(buffer);
 
 
 
-    let file = utilities::FileData::get_by_http_subdir(path, dirs.get_file().clone());
+    let file = FileData::get_by_http_subdir(path, dirs.get_file().clone());
 
 
     let mut buffer_page: Vec<u8> = Vec::new();
@@ -65,7 +68,7 @@ async fn handle_client(mut stream: &TcpStream, dirs: &mut fileDataTtl, map: &mut
             if map.contains_key(&buf.get_path()) {
                 buffer_page = map.get(&buf.get_path()).unwrap().to_vec();
             } else {
-                buffer_page = utilities::open_file_by_path(buf.clone(), dirs.get_file().to_vec());
+                buffer_page = open_file_by_path(buf.clone(), dirs.get_file().to_vec());
                 map.insert(buf.get_path(), buffer_page.clone());
             }
             file_type =  buf.get_content_type();
@@ -79,7 +82,7 @@ async fn handle_client(mut stream: &TcpStream, dirs: &mut fileDataTtl, map: &mut
     }
 
 
-    let mut res = utilities::Response {
+    let mut res = Response {
         http_version: http_ver,
         status_code: status_code,
         status_text: "OK",
@@ -155,7 +158,7 @@ fn get_epoch_now() -> u32 {
 async fn process_message(receiver: Receiver<TcpStream>,config: config::ServerConfig ,idx: i32) {
         let mut dirs: fileDataTtl = fileDataTtl {
             timestamp: get_epoch_now(),
-            files: utilities::look_for_dirs_and_subdirs(),
+            files: look_for_dirs_and_subdirs(),
             ttl: config.server.ttl,
         };
 
