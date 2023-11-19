@@ -1,0 +1,5 @@
+server:
+  port: 8459
+  threads: 8
+  ttl: 20
+  root: ./web

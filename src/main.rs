@@ -5,7 +5,6 @@ use std::fs::{self, File};
 use std::sync::{Arc, mpsc};
 use tokio::sync::{Mutex, Semaphore};
 use utilities::fileDataTtl;
-use std::env;
 use std::net::{TcpListener, TcpStream};
 use std::io::BufReader;
 use std::io::Write;
@@ -13,6 +12,10 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod utilities;
+mod config;
+
+
+
 
 pub fn write_data(mut stream: &TcpStream, data: utilities::Response) -> io::Result<()> {
     stream.write_all(&data.as_bytes());
@@ -106,16 +109,15 @@ async fn handle_client(mut stream: &TcpStream, dirs: &mut fileDataTtl, map: &mut
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let args: Vec<String> = env::args().collect();
     let mut senders: Vec<Sender<TcpStream>> = vec![];
     let mut NUM_THREADS: usize;
 
-    if args.len() > 1 {
-        NUM_THREADS = args[1].parse::<usize>().unwrap();
-    } else {
-        println!("No number of threads specified, using 2");
-        NUM_THREADS = 2;
-    }
+    let parsed = config::parse_config();
+
+
+    NUM_THREADS = parsed.server.threads;
+
+
 
     for i in 0..NUM_THREADS {
         let (sender, receiver): (Sender<TcpStream>, _) = unbounded();
@@ -123,10 +125,10 @@ async fn main() -> io::Result<()> {
 
         let receiver = receiver.clone();
 
-        tokio::spawn(process_message(receiver, i.try_into().unwrap()));
+        tokio::spawn(process_message(receiver, parsed.clone(), i.try_into().unwrap()));
     }
 
-    let listener = TcpListener::bind("0.0.0.0:8453")?;
+    let listener = TcpListener::bind(format!("{}:{}", "0.0.0.0", parsed.server.port))?;
 
     let mut i = 0;
     for stream in listener.incoming() {
@@ -150,17 +152,19 @@ fn get_epoch_now() -> u32 {
 }
 
 
-async fn process_message(receiver: Receiver<TcpStream>,idx: i32) {
+async fn process_message(receiver: Receiver<TcpStream>,config: config::ServerConfig ,idx: i32) {
         let mut dirs: fileDataTtl = fileDataTtl {
             timestamp: get_epoch_now(),
             files: utilities::look_for_dirs_and_subdirs(),
-            ttl: 10,
+            ttl: config.server.ttl,
         };
 
 
+        println!("Worker thread {} started and ready to accept connections", idx);
+
         let mut hashMap: HashMap<String, Vec<u8>> = HashMap::new();
 
-        println!("Thread {} started", idx);
+
 
         while let Ok(stream) = receiver.recv() {
                 handle_client(&stream, &mut dirs, &mut hashMap).await;

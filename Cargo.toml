@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 crossbeam-channel = "0.5.0"
+serde = {version = "1.0.192", features = ["derive"]}
+serde_yaml = "0.9.27"
 tokio = { version = "1.12", features = ["full"] }
