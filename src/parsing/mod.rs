@@ -24,17 +24,15 @@ pub fn parse_req_buffer(Buf: Vec<String>) -> String{
 
 pub fn parse_request(lines: Vec<String>) -> Result<HttpReq, io::Error> {
 
-//    println!("{:#?}", lines);
     if lines.len() < 1{
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "boh"));
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "InvalidData"));
    }
     let first_line = lines.first().unwrap().clone();
     let mut parts = first_line.split_whitespace();
 
     // Extracting HTTP method and path
     let method = parts.next().unwrap_or_default().to_string();
-    let path = parts.next().unwrap_or_default().to_string();
-
+    let path = parts.next().unwrap_or_default().to_string().replace("%20", " ");
     // Parsing headers
     let mut headers = HashMap::new();
     for line in lines.iter().skip(1) {
