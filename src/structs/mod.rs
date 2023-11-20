@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 
 
 pub struct Response<'a> {
@@ -28,12 +30,12 @@ impl Response<'_> {
     }
 }
 
-pub struct Request {
-    http_version: String,
-    method: String,
-    path: String,
-    headers: Vec<String>,
-    body: String,
+
+#[derive(Debug, Clone)]
+pub struct HttpReq {
+    pub method: String,
+    pub path: String,
+    pub headers: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -109,3 +111,5 @@ impl FileData {
         newVec
     }
 }
+
+
