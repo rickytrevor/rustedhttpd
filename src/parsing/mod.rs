@@ -29,11 +29,9 @@ pub fn parse_request(lines: Vec<String>) -> Result<HttpReq, io::Error> {
    }
     let first_line = lines.first().unwrap().clone();
     let mut parts = first_line.split_whitespace();
-
-    // Extracting HTTP method and path
     let method = parts.next().unwrap_or_default().to_string();
     let path = parts.next().unwrap_or_default().to_string().replace("%20", " ");
-    // Parsing headers
+
     let mut headers = HashMap::new();
     for line in lines.iter().skip(1) {
         let mut parts = line.splitn(2, ':');

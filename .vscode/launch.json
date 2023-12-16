@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'simple-http-nico'",
+            "name": "Debug executable 'rustedhttpd'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=simple-http-nico",
-                    "--package=simple-http-nico"
+                    "--bin=rustedhttpd",
+                    "--package=rustedhttpd"
                 ],
                 "filter": {
-                    "name": "simple-http-nico",
+                    "name": "rustedhttpd",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'simple-http-nico'",
+            "name": "Debug unit tests in executable 'rustedhttpd'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=simple-http-nico",
-                    "--package=simple-http-nico"
+                    "--bin=rustedhttpd",
+                    "--package=rustedhttpd"
                 ],
                 "filter": {
-                    "name": "simple-http-nico",
+                    "name": "rustedhttpd",
                     "kind": "bin"
                 }
             },

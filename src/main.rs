@@ -13,11 +13,10 @@ mod config;
 mod parsing;
 mod structs;
 mod files;
+mod loggers_other_misc;
 
-use parsing::*;
 use structs::*;
 use files::*;
-use config::*;
 
 
 pub fn write_data(mut stream: &TcpStream, data: structs::Response) -> io::Result<()> {
@@ -30,7 +29,7 @@ pub fn write_data(mut stream: &TcpStream, data: structs::Response) -> io::Result
 
 async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut HashMap<String, Vec<u8>>) -> Result<String, io::Error> {
     loop {
-        let now = get_epoch_now();
+        let now = loggers_other_misc::get_epoch_now();
         if now > (dirs.timestamp + dirs.ttl) {
             dirs.ttl = dirs.ttl;
             dirs.files = look_for_dirs_and_subdirs();
@@ -103,23 +102,21 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
         );
 
         if let Err(e) = stream.write_all(response.as_bytes()) {
-            eprintln!("Error writing response: {}", e);
-            // return an error 
+//            eprintln!("Error writing response: {}", e);
             return Err(e);
         }
 
         if let Err(e) = stream.write_all(&buffer_page) {
-            eprintln!("Error writing response body: {}", e);
+//            eprintln!("Error writing response body: {}", e);
             return Err(e);
         }
 
         if let Err(e) = stream.flush() {
-            eprintln!("Error flushing response: {}", e);
+//            eprintln!("Error flushing response: {}", e);
             return Err(e);
         }
 
-        // Check if the connection should be kept alive
-        if !should_keep_alive(http_req_struct.clone()) {
+        if !should_keep_alive(http_req_struct.headers.get("Connection")) {
             break;
         }
     }
@@ -127,17 +124,13 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
     Ok("Ok".to_string())
 }
 
-fn should_keep_alive(http_req: HttpReq) -> bool {
-    if let Some(connection_header) = http_req.headers.get("Connection") {
+fn should_keep_alive(http_req: std::option::Option<&std::string::String>) -> bool {
+    if let Some(connection_header) = http_req {
         connection_header == "Keep-Alive: timeout=5, max=1000"
     } else {
         false
     }
 }
-
-
-
-
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
@@ -149,9 +142,7 @@ async fn main() -> io::Result<()> {
     for i in 0..NUM_THREADS {
         let (sender, receiver): (Sender<TcpStream>, _) = unbounded();
         senders.push(sender.clone());
-
         let receiver = receiver.clone();
-
         tokio::spawn(process_message(receiver, parsed.clone(), i.try_into().unwrap()));
     }
 
@@ -159,35 +150,28 @@ async fn main() -> io::Result<()> {
 
     for (i, stream) in listener.incoming().enumerate() {
         let stream = stream?;
-        // Use modulo to distribute connections among worker threads
-        let sender_index = i % NUM_THREADS;
-        senders[sender_index].send(stream).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        senders[i % NUM_THREADS].send(stream).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     }
 
     Ok(())
 }
 
-fn get_epoch_now() -> u32 {
-    let start = SystemTime::now();
-    let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
-    since_the_epoch.as_secs() as u32
-}
+
 
 
 async fn process_message(receiver: Receiver<TcpStream>, config: config::ServerConfig, idx: i32) {
     let mut dirs: fileDataTtl = fileDataTtl {
-        timestamp: get_epoch_now(),
+        timestamp:  loggers_other_misc::get_epoch_now(),
         files: look_for_dirs_and_subdirs(),
         ttl: config.server.ttl,
     };
 
     println!("Worker thread {} started and ready to accept connections", idx);
-
     let mut hashMap: HashMap<String, Vec<u8>> = HashMap::new();
-
     while let Ok(stream) = receiver.recv() {
         if let Err(e) = handle_client(stream, &mut dirs, &mut hashMap).await {
-            eprintln!("Error handling client: {}", e);
         }
     }
 }
+
+

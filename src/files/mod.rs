@@ -17,6 +17,7 @@ pub fn look_for_files_in_this_dir(path: String) -> Vec<FileData> {
 pub fn process_if_path_is_dir(path: FileData) -> String {
         let mut buffer = String::from("<h1>Directory</h1>");
         let dirs_and_subdirs = look_for_files_in_this_dir(path.get_path());
+
         for dir in dirs_and_subdirs {
             buffer.push_str("<ul>");
             buffer.push_str("<li>");
@@ -27,8 +28,8 @@ pub fn process_if_path_is_dir(path: FileData) -> String {
             buffer.push_str("</a>");
             buffer.push_str("</li>");
             buffer.push_str("</ul>");
-            
         }
+
         buffer.push_str("</ul>");
         buffer
 }
@@ -41,9 +42,11 @@ pub fn open_file_by_path(path: FileData, files: Vec<FileData> ) -> Vec<u8> {
     if path.is_dir {
         for file in files {
             if file.get_name() == "index.html" {
+
                 return open_file_by_path(file, fileVec);
             }
         }
+
         return process_if_path_is_dir(path).as_bytes().to_vec();
     }
 
@@ -65,7 +68,6 @@ pub fn look_for_dirs_and_subdirs() -> Vec<FileData> {
         is_dir: true,
         
     });
-
 
     for file in process_directory(root_path,  false).iter() {
         files.push(file.clone());
@@ -105,7 +107,6 @@ fn process_directory(directory_path: &str, no_recursive: bool) -> Vec<FileData> 
                             content_type: content_type.clone(),
                             is_dir: true,
                         });
-
                         if !no_recursive {
                             stack.push_back(entry_path.to_str().unwrap().to_string());
                         }
