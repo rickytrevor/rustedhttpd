@@ -3,3 +3,7 @@ server:
   threads: 16
   ttl: 20
   root: ./web
+
+  php:
+    server: 127.0.0.1
+    port: 9000

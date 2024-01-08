@@ -1,6 +1,12 @@
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+use tokio::net::TcpStream;
 
+pub struct bufAndFt {
+    pub buf: Vec<u8>,
+    pub ft: String,
+}
 
 pub struct Response<'a> {
     pub http_version: &'a str,
@@ -47,6 +53,17 @@ pub struct FileData {
     pub is_dir: bool,
 }
 
+pub struct phpConnection {
+    pub connection: TcpStream,
+    pub is_enabled: bool,
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct phpConnectionDetails{
+    pub server: String,
+    pub port: u16,
+}
 
 pub struct fileDataTtl {
     pub files: Vec<FileData>,

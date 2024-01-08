@@ -5,10 +5,29 @@ use serde_yaml;
 
 use std::fs::File;
 
+use crate::structs::phpConnectionDetails;
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServerConfig {
     pub server: ServerSettings,
+}
+
+
+impl ServerConfig {
+    pub fn get_server(&self) -> &ServerSettings {
+        &self.server
+    }
+
+    pub fn get_php(&self) -> &Option<phpConnectionDetails> {
+        &self.server.php
+    }
+
+    pub fn set_server(&mut self, server: ServerSettings) {
+        self.server = server;
+    }
+
+
 }
 
 
@@ -22,7 +41,19 @@ pub struct ServerSettings {
     pub ttl: u32,
     #[serde(default = "default_root")]
     pub root: String,
+    #[serde(default = "default_php")]
+    pub php: Option<phpConnectionDetails>,
+
 }
+ 
+
+fn default_php() -> Option<phpConnectionDetails> {
+    println!("disabling php");
+    None
+}
+
+
+
 
 fn default_port() -> u32 {
     println!("Unspecified port, using default: 8453");

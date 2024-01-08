@@ -58,6 +58,7 @@ pub fn parse_content_type(path: &str) -> String {
 
     match extension {
         "html" => content_type = String::from("text/html"),
+        "php" => content_type = String::from("application/x-httpd-php"),
         "css" => content_type = String::from("text/css"),
         "js" => content_type = String::from("text/javascript"),
         "jpg" => content_type = String::from("image/jpeg"),

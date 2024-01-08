@@ -14,3 +14,4 @@ tokio = { version = "1.12", features = ["full"] }
 tokio-rustls = "0.22"
 rustls = "0.19"
 webpki = "0.21"
+fastcgi-client = "0.9.0"

@@ -4,7 +4,7 @@ use std::io::Read;
 use std::sync::{Arc, Mutex};
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use std::collections::VecDeque;
-
+use fastcgi_client::{Client, Params, Request};
 use crate::parsing::parse_content_type;
 use crate::structs::FileData;
 
@@ -41,10 +41,13 @@ pub fn open_file_by_path(path: FileData, files: Vec<FileData> ) -> Vec<u8> {
 
     if path.is_dir {
         for file in files {
-            if file.get_name() == "index.html" {
-
+            if file.get_name() == "index.html" {//|| file.get_name() == "index.php"  {
                 return open_file_by_path(file, fileVec);
             }
+
+//            if file.get_name() == "index.php"  {
+//                return open_file_by_path(file, fileVec);
+//            }
         }
 
         return process_if_path_is_dir(path).as_bytes().to_vec();
