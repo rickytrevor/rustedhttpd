@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{BufRead, Error};
+use std::io::{BufRead, Error, Read};
 use std::{io, thread, env};
 use std::fs::{self, File};
 use std::sync::{Arc, mpsc};
@@ -31,6 +31,7 @@ pub fn write_data(mut stream: &TcpStream, data: structs::Response) -> io::Result
 async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut HashMap<String, Vec<u8>>, phpConnection: &Option<phpConnection>) -> Result<String, io::Error> {
     loop {
         let now = loggers_other_misc::get_epoch_now();
+        let mut Method: &str = "";
         if now > (dirs.timestamp + dirs.ttl) {
             dirs.ttl = dirs.ttl;
             dirs.files = look_for_dirs_and_subdirs();
@@ -38,31 +39,52 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
             *map = HashMap::new();
         }
 
-        let mut buffer = Vec::new();
         let http_ver = "HTTP/1.1 ";
 
-        let reader = BufReader::new(&mut stream);
 
-        for line in reader.lines() {
-            let line = line.unwrap();
-            if line.is_empty() {
-                break;
+        let mut reader = BufReader::new(&mut stream);
+        let mut buf_body = [0; 1024];
+        reader.read(&mut buf_body).unwrap(); 
+
+        let mut buffer_body = buf_body.to_vec();
+        let mut buffer_body = String::from_utf8(buffer_body).unwrap();
+
+
+        fn parse_body(buf: &mut String) -> Option<String>{
+            let mut body = buf.clone();
+            let mut body = body.split("Content-Length: ").collect::<Vec<&str>>();
+//            
+        // if it has body return it, otherwise None
+            if let Some(value) = body.get(1) {            
+                let mut body = body[1].split("\r\n\r\n").collect::<Vec<&str>>();
+                return Some(body[1].to_string())  
             }
-            buffer.push(line);
+            None
         }
+        buffer_body.retain(|c| c != '\0');
 
-//        println!("{:?}", buffer);
+        println!("buffer body: {}", buffer_body);
+        let mut parsed_body = parse_body(&mut buffer_body).unwrap_or(String::new());
+        buffer_body.retain(|c| c != '\r');
+
+        let mut buffer_req = buffer_body.replace(parsed_body.as_str(), "");
+
+        
+
+
         let mut buffer_page: Vec<u8> = Vec::new();
         let mut http_req_struct: HttpReq;
 
-        match parsing::parse_request(buffer) {
+        match parsing::parse_request(buffer_req.replace("\n", " ").as_str()) {
             Ok(buf) => {
                 http_req_struct = buf;
+                http_req_struct.body = parsed_body;
             },
             Err(e) => {
                 return Err(e);
             },
         }
+
 
         let file = FileData::get_by_http_subdir(http_req_struct.path.clone(), dirs.get_file().clone());
         let (status_code, mut buffer_page, mut file_type) = match file {
@@ -99,39 +121,70 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
 
         let script_name = &http_req_struct.path[http_req_struct.path.rfind('/').unwrap()..];
         println!("{} {}", script_filename, script_name);
-
         let stream = tokio::net::TcpStream::connect(("127.0.0.1", 9000)).await.unwrap();
-        let mut client = Client::new(stream);
+        let body_slice = http_req_struct.body_to_u8();
 
-        let params = Params::default()
-            .request_method("GET")
+
+
+        let mut params = Params::default()
+            .request_method(http_req_struct.method.to_string())
             .script_name(script_name)
             .script_filename(script_filename)
-            .request_uri(script_name)
+            .request_uri(format!("{}{}", script_name, "?p1=3&p2=4".to_string()))
+
+            .query_string("p1=3&p2=4")
             .document_uri(script_name)
             .remote_addr("127.0.0.1")
             .remote_port(12345)
             .server_addr("127.0.0.1")
             .server_port(8090)
             .server_name("RustedHttpd")
-            .content_type("")
-            .content_length(0);
+            .content_type("application/x-www-form-urlencoded")
+            .content_length(body_slice.len());
+            let client = Client::new(stream);
 
-            let output = client.execute_once(Request::new(params, &mut tokio::io::empty())).await.unwrap();
-            let stdout = String::from_utf8(output.stdout.unwrap()).unwrap();
             
-            buffer_page = stdout.as_bytes().to_vec();
-            file_type = "text/html".to_string();
-        }
-        let mut res_headers = format!(
-            "Content-Length: {}\r\nContent-Type: {}\r\nConnection: close\r\nServer: RustedHttpd\r\n",
-            buffer_page.len(),
-            file_type
-        );
+            // Create a reader from the slice
+//            let mut reader = tokio::io::Cursor::new(body_slice);
+            let mut output = client.execute_once(Request::new(params.clone(), &mut &body_slice[..])).await;
 
-        for (key, value) in http_req_struct.clone().headers {
-            res_headers.push_str(&format!("{}: {}\r\n", key, value));
+
+            match output {
+                Ok(o) => {
+                    buffer_page = o.stdout.clone().unwrap();
+                    file_type = "text/html".to_string();
+                },
+                Err(e) => {
+                    buffer_page = b"<h1>500 Internal Server Error</h1>".to_vec();
+                    file_type = "text/html".to_string();
+                }
+            }    
+
+
+
         }
+
+
+
+
+let mut res_headers = format!(
+    "Content-Length: {}\r\nContent-Type: {}\r\nConnection: close\r\nServer: RustedHttpd\r\n",
+    buffer_page.len(),
+    file_type + "; charset=utf-8"
+);
+
+let mut seen_content_length = false;
+
+for (key, value) in http_req_struct.clone().headers {
+    if key.eq_ignore_ascii_case("Content-Length") {
+        if seen_content_length {
+            continue;
+        }
+        seen_content_length = true;
+    }
+    res_headers.push_str(&format!("{}: {}\r\n", key, value));
+}
+
 
         let response = format!(
             "{}{} {}\r\n{}\r\n",
@@ -233,6 +286,7 @@ async fn process_message(receiver: Receiver<TcpStream>, phpConnection: Arc<Optio
 
     let mut hashMap: HashMap<String, Vec<u8>> = HashMap::new();
     while let Ok(stream) = receiver.recv() {
+        //println!("{:#?}", stream);
         if let Err(e) = handle_client(stream, &mut dirs, &mut hashMap, &phpConnection).await {
         }
     }

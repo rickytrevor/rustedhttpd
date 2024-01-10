@@ -42,6 +42,14 @@ pub struct HttpReq {
     pub method: String,
     pub path: String,
     pub headers: HashMap<String, String>,
+    pub params: String,
+    pub body: String
+}
+
+impl HttpReq {
+    pub fn body_to_u8(&self) -> Vec<u8> {
+        self.body.as_bytes().to_vec()
+    }
 }
 
 #[derive(Debug, Clone)]

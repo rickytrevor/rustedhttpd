@@ -22,30 +22,52 @@ pub fn parse_req_buffer(Buf: Vec<String>) -> String{
 
 
 
-pub fn parse_request(lines: Vec<String>) -> Result<HttpReq, io::Error> {
+pub fn parse_request(input: &str) -> Result<HttpReq, io::Error> {
+    println!("{}", input);
+    let lines: Vec<&str> = input.lines().collect();
 
-    if lines.len() < 1{
+    if lines.is_empty() {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "InvalidData"));
-   }
-    let first_line = lines.first().unwrap().clone();
+    }
+
+    let first_line = lines.first().unwrap().to_string();
     let mut parts = first_line.split_whitespace();
     let method = parts.next().unwrap_or_default().to_string();
     let path = parts.next().unwrap_or_default().to_string().replace("%20", " ");
 
     let mut headers = HashMap::new();
+    let mut params = None;
+    let mut content_length = None;
+
     for line in lines.iter().skip(1) {
         let mut parts = line.splitn(2, ':');
         if let Some(key) = parts.next() {
             if let Some(value) = parts.next() {
-                headers.insert(key.trim().to_string(), value.trim().to_string());
+                let key = key.trim().to_string();
+                let value = value.trim().to_string();
+                headers.insert(key.clone(), value.clone());
+
+                if key.to_lowercase() == "host" {
+                    // Extract parameters from the path after the '?' character
+                    if let Some(index) = path.find('?') {
+                        params = Some(path[index + 1..].to_string());
+                    }
+                }
+
+                if key.to_lowercase() == "content-length" {
+                    content_length = Some(value.parse::<usize>().unwrap_or(0));
+                }
             }
         }
     }
+
 
     let http_req = HttpReq {
         method: method,
         path: path,
         headers: headers,
+        params: params.unwrap_or(String::from("")),
+        body: String::new() // TODO Unificare il parsing del body
     };
 
     Ok(http_req)
