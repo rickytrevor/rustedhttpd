@@ -53,8 +53,6 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
         fn parse_body(buf: &mut String) -> Option<String>{
             let mut body = buf.clone();
             let mut body = body.split("Content-Length: ").collect::<Vec<&str>>();
-//            
-        // if it has body return it, otherwise None
             if let Some(value) = body.get(1) {            
                 let mut body = body[1].split("\r\n\r\n").collect::<Vec<&str>>();
                 return Some(body[1].to_string())  
@@ -63,7 +61,6 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
         }
         buffer_body.retain(|c| c != '\0');
 
-        println!("buffer body: {}", buffer_body);
         let mut parsed_body = parse_body(&mut buffer_body).unwrap_or(String::new());
         buffer_body.retain(|c| c != '\r');
 
@@ -125,14 +122,14 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
         let body_slice = http_req_struct.body_to_u8();
 
 
+        let req_params = http_req_struct.params.clone();
 
         let mut params = Params::default()
             .request_method(http_req_struct.method.to_string())
             .script_name(script_name)
             .script_filename(script_filename)
-            .request_uri(format!("{}{}", script_name, "?p1=3&p2=4".to_string()))
-
-            .query_string("p1=3&p2=4")
+            .request_uri(format!("{}{}", script_name, req_params))
+            .query_string(req_params.chars().skip(1).collect::<String>())
             .document_uri(script_name)
             .remote_addr("127.0.0.1")
             .remote_port(12345)
@@ -141,11 +138,10 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
             .server_name("RustedHttpd")
             .content_type("application/x-www-form-urlencoded")
             .content_length(body_slice.len());
+
             let client = Client::new(stream);
 
             
-            // Create a reader from the slice
-//            let mut reader = tokio::io::Cursor::new(body_slice);
             let mut output = client.execute_once(Request::new(params.clone(), &mut &body_slice[..])).await;
 
 

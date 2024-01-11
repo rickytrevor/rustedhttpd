@@ -1,5 +1,5 @@
 use std::{collections::HashMap, io};
-
+use regex::Regex;
 use crate::structs::HttpReq;
 
 pub fn parse_req_buffer(Buf: Vec<String>) -> String{
@@ -33,11 +33,10 @@ pub fn parse_request(input: &str) -> Result<HttpReq, io::Error> {
     let first_line = lines.first().unwrap().to_string();
     let mut parts = first_line.split_whitespace();
     let method = parts.next().unwrap_or_default().to_string();
-    let path = parts.next().unwrap_or_default().to_string().replace("%20", " ");
-
+//    let mut path = parts.next().unwrap_or_default().to_string().replace("%20", " ");
+    let mut path =  parts.next().unwrap_or_default().to_string();
     let mut headers = HashMap::new();
-    let mut params = None;
-    let mut content_length = None;
+    let mut params= String::new();
 
     for line in lines.iter().skip(1) {
         let mut parts = line.splitn(2, ':');
@@ -46,27 +45,23 @@ pub fn parse_request(input: &str) -> Result<HttpReq, io::Error> {
                 let key = key.trim().to_string();
                 let value = value.trim().to_string();
                 headers.insert(key.clone(), value.clone());
-
-                if key.to_lowercase() == "host" {
-                    // Extract parameters from the path after the '?' character
-                    if let Some(index) = path.find('?') {
-                        params = Some(path[index + 1..].to_string());
-                    }
-                }
-
-                if key.to_lowercase() == "content-length" {
-                    content_length = Some(value.parse::<usize>().unwrap_or(0));
-                }
             }
         }
     }
 
+    let re = Regex::new(r"(\?.*?)( |$)").unwrap();
+    if let Some(captures) = re.captures(&first_line) {
+        params = captures.get(1).map_or(String::from(""), |m| m.as_str().to_string());
+    }
 
+    path = path.replace(&params, "");
+
+    
     let http_req = HttpReq {
         method: method,
         path: path,
         headers: headers,
-        params: params.unwrap_or(String::from("")),
+        params: params,
         body: String::new() // TODO Unificare il parsing del body
     };
 

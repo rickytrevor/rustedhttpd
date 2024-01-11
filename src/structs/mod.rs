@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-
+use tokio::{net::TcpStream, io::AsyncRead, io::Result as IoResult};
 use serde::{Deserialize, Serialize};
-use tokio::net::TcpStream;
 
 pub struct bufAndFt {
     pub buf: Vec<u8>,
@@ -61,11 +60,17 @@ pub struct FileData {
     pub is_dir: bool,
 }
 
+
 pub struct phpConnection {
     pub connection: TcpStream,
     pub is_enabled: bool,
 }
 
+impl phpConnection {
+    fn get_connection(&self) -> &TcpStream {
+        &self.connection
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct phpConnectionDetails{
