@@ -71,7 +71,7 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
 
         let mut buffer_page: Vec<u8> = Vec::new();
         let mut http_req_struct: HttpReq;
-
+        let mut file_type: String;
         match parsing::parse_request(buffer_req.replace("\n", " ").as_str()) {
             Ok(buf) => {
                 http_req_struct = buf;
@@ -89,7 +89,9 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
                 if map.contains_key(&buf.get_path()) {
                     buffer_page = map.get(&buf.get_path()).unwrap().to_vec();
                 } else {
-                    buffer_page = open_file_by_path(buf.clone(), dirs.get_file().to_vec());
+                    let tmp  = open_file_by_path(buf.clone(), (dirs.get_file()).to_vec());
+                    buffer_page = tmp.0;
+                    file_type = tmp.1;
                     map.insert(buf.get_path(), buffer_page.clone());
                 }
                 (200, buffer_page, buf.get_content_type())
@@ -117,10 +119,9 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
         let script_filename = script_filename.to_str().unwrap();
 
         let script_name = &http_req_struct.path[http_req_struct.path.rfind('/').unwrap()..];
-        println!("{} {}", script_filename, script_name);
+       // println!("{} {}", script_filename, script_name);
         let stream = tokio::net::TcpStream::connect(("127.0.0.1", 9000)).await.unwrap();
         let body_slice = http_req_struct.body_to_u8();
-
 
         let req_params = http_req_struct.params.clone();
 
@@ -151,7 +152,7 @@ async fn handle_client(mut stream: TcpStream, dirs: &mut fileDataTtl, map: &mut 
                     file_type = "text/html".to_string();
                 },
                 Err(e) => {
-                    buffer_page = b"<h1>500 Internal Server Error</h1>".to_vec();
+                    buffer_page = format!("<h1>500 Internal Server Error</h1> <p>{}</p>", e.to_string()).as_bytes().to_vec();
                     file_type = "text/html".to_string();
                 }
             }    

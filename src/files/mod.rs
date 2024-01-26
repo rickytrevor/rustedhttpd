@@ -35,28 +35,25 @@ pub fn process_if_path_is_dir(path: FileData) -> String {
 }
 
 
-pub fn open_file_by_path(path: FileData, files: Vec<FileData> ) -> Vec<u8> {
+pub fn open_file_by_path(path: FileData, files: Vec<FileData> ) -> (Vec<u8>, String) {
     let mut fileVec = vec![];
     fileVec = files.clone();
 
     if path.is_dir {
         for file in files {
-            if file.get_name() == "index.html" {//|| file.get_name() == "index.php"  {
+            if file.get_name() == "index.html" || file.get_name() == "index.php"  {
+                
                 return open_file_by_path(file, fileVec);
             }
-
-//            if file.get_name() == "index.php"  {
-//                return open_file_by_path(file, fileVec);
-//            }
         }
 
-        return process_if_path_is_dir(path).as_bytes().to_vec();
+        return (process_if_path_is_dir(path).as_bytes().to_vec(), String::from("text/html"));
     }
 
     let mut file = fs::File::open(&path.path).unwrap();
     let mut contents = Vec::new();
     file.read_to_end(&mut contents).unwrap();
-    contents
+    (contents, parse_content_type(&path.path))
 }
 
 pub fn look_for_dirs_and_subdirs() -> Vec<FileData> {

@@ -2,25 +2,6 @@ use std::{collections::HashMap, io};
 use regex::Regex;
 use crate::structs::HttpReq;
 
-pub fn parse_req_buffer(Buf: Vec<String>) -> String{
-    let mut buffer = String::new();
-    for line in Buf {
-        buffer.push_str(&line.replace("%20", " "));
-    }
-
-    let mut path = match buffer.split("GET").collect::<Vec<&str>>().get(1) {
-        Some(p) => p,
-        None => "",
-    };
-    path = match path.split("HTTP/1.1").collect::<Vec<&str>>().get(0) {
-        Some(p) => p,
-        None => path,
-    };
-    path = path.trim();
-    path.to_string()
-}
-
-
 
 pub fn parse_request(input: &str) -> Result<HttpReq, io::Error> {
     println!("{}", input);
@@ -33,7 +14,6 @@ pub fn parse_request(input: &str) -> Result<HttpReq, io::Error> {
     let first_line = lines.first().unwrap().to_string();
     let mut parts = first_line.split_whitespace();
     let method = parts.next().unwrap_or_default().to_string();
-//    let mut path = parts.next().unwrap_or_default().to_string().replace("%20", " ");
     let mut path =  parts.next().unwrap_or_default().to_string();
     let mut headers = HashMap::new();
     let mut params= String::new();
