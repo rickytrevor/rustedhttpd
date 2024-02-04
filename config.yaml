@@ -1,5 +1,5 @@
 server:
-  port: 8090
-  threads: 16
+  port: 80
+  threads: 2
   ttl: 20
   root: ./web
